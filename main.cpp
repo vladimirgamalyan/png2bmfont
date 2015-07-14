@@ -1,5 +1,6 @@
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/lexical_cast.hpp>
 #include <iostream>
 #include "lodepng/lodepng.h"
 #include "MaxRectsBinPack/MaxRectsBinPack.h"
@@ -18,7 +19,10 @@ public:
         if ( error )
             throw std::runtime_error( std::string("png decoder error ") + lodepng_error_text(error) );
         charId = fileName.stem().generic_string();
-        charId.erase(0, 1);
+        if ( charId.length() > 1 )
+            charId.erase(0, 1);
+        else
+            charId = boost::lexical_cast<std::string>(charId.at(0));
     }
 
     unsigned getWidth() const
@@ -89,7 +93,7 @@ private:
     std::vector< unsigned char > data;
 };
 
-void makeFnt( const fs::path& dir )
+void makeFnt( const fs::path& dir, fs::path output, unsigned int textureWidth, unsigned int textureHeight )
 {
     std::vector<fs::path> files;
     for( fs::recursive_directory_iterator it(dir); it != fs::recursive_directory_iterator(); ++it )
@@ -112,9 +116,6 @@ void makeFnt( const fs::path& dir )
         srcRects.back().height = srcImages[i].getHeight();
     }
 
-    const int DST_WIDTH = 256;
-    const int DST_HEIGHT = 256;
-
 
     tinyxml2::XMLDocument doc;
     tinyxml2::XMLDeclaration* decl = doc.NewDeclaration();
@@ -134,13 +135,17 @@ void makeFnt( const fs::path& dir )
     int charsCount = 0;
     for (int page = 0;; ++page)
     {
-        rbp::MaxRectsBinPack mrbp(DST_WIDTH, DST_HEIGHT);
+        rbp::MaxRectsBinPack mrbp(textureWidth, textureHeight);
         std::vector<rbp::Rect> readyRects;
         mrbp.Insert( srcRects, readyRects, rbp::MaxRectsBinPack::RectBestAreaFit );
         if ( readyRects.empty() )
+        {
+            if ( !srcRects.empty() )
+                throw std::runtime_error("can not fit glyphs to texture");
             break;
+        }
 
-        Bitmap bitmap(DST_WIDTH, DST_HEIGHT);
+        Bitmap bitmap(textureWidth, textureHeight);
         for ( std::vector<rbp::Rect>::iterator it = readyRects.begin(); it != readyRects.end(); ++it )
         {
             bitmap.paste(srcImages[it->tag], it->x, it->y);
@@ -163,8 +168,11 @@ void makeFnt( const fs::path& dir )
         }
 
         std::stringstream ss;
-        ss << "page_" << page << ".png";
+        ss << output.generic_string() << "_" << page << ".png";
         bitmap.saveToFile(ss.str());
+
+        ss.str(std::string());
+        ss << output.filename().generic_string() << "_" << page << ".png";
 
         tinyxml2::XMLElement* pageElement = doc.NewElement("page");
         pageElement->SetAttribute("id", page);
@@ -173,7 +181,11 @@ void makeFnt( const fs::path& dir )
     }
 
     chars->SetAttribute("count", charsCount);
-    tinyxml2::XMLError err = doc.SaveFile("font.fnt", false);
+
+    output.replace_extension("fnt");
+    tinyxml2::XMLError err = doc.SaveFile(output.generic_string().c_str(), false);
+    if (err)
+        throw std::runtime_error("xml write to file error");
 }
 
 int main( int argc, char** argv )
@@ -181,10 +193,17 @@ int main( int argc, char** argv )
     try
     {
         fs::path dir;
+        fs::path output;
+        unsigned int textureWidth;
+        unsigned int textureHeight;
         po::options_description desc( "Allowed options" );
         desc.add_options()
                 ( "help", "produce help message" )
-                ( "dir", po::value< fs::path >( &dir )->required(), "glyphs directory" );
+                ( "dir", po::value< fs::path >( &dir )->required(), "glyphs directory" )
+                ( "width", po::value< unsigned int >( &textureWidth )->required(), "texture width" )
+                ( "height", po::value< unsigned int >( &textureHeight )->required(), "texture height" )
+                ( "output", po::value< fs::path >( &output )->required(), "path to output files without extenstion" )
+                ;
         po::variables_map vm;
         po::store( po::parse_command_line( argc, argv, desc ), vm );
 
@@ -197,9 +216,12 @@ int main( int argc, char** argv )
         po::notify( vm );
 
         if ( !fs::is_directory(dir) )
-            throw std::runtime_error("specified path is not a directory");
+            throw std::runtime_error("specified dir path is not a directory");
 
-        makeFnt( dir );
+        //if ( !fs::is_directory( output.parent_path() ) )
+        //    throw std::runtime_error("specified output path is not valid");
+
+        makeFnt( dir, output, textureWidth, textureHeight );
     }
     catch ( std::exception& e )
     {

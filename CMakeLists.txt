@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8.7)
 project(png2bmfont)
 
 set(BOOST_MIN_VERSION "1.46.0")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 
 if (WIN32)
     set(BOOST_ROOT "c:\\boost_1_58_0")
