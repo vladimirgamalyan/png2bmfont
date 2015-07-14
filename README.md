@@ -4,4 +4,4 @@
 
 Convert png glyphs to [bmfont](http://www.angelcode.com/products/bmfont/) compatible texture/fnt files.
 
-This software use [RectangleBinPack](https://github.com/juj/RectangleBinPack) by [Jukka Jylänki](https://github.com/juj) and [LodePNG](http://lodev.org/lodepng/).
+This software use [RectangleBinPack](https://github.com/juj/RectangleBinPack) by [Jukka Jylänki](https://github.com/juj) and [LodePNG](https://github.com/lvandeve/lodepng) and [tinyxml2](https://github.com/leethomason/tinyxml2).

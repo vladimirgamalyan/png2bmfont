@@ -3,6 +3,7 @@
 #include <iostream>
 #include "lodepng/lodepng.h"
 #include "MaxRectsBinPack/MaxRectsBinPack.h"
+#include "tinyxml2/tinyxml2.h"
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
@@ -16,6 +17,8 @@ public:
         unsigned error = lodepng::decode(data, width, height, fileName.generic_string().c_str());
         if ( error )
             throw std::runtime_error( std::string("png decoder error ") + lodepng_error_text(error) );
+        charId = fileName.stem().generic_string();
+        charId.erase(0, 1);
     }
 
     unsigned getWidth() const
@@ -32,7 +35,12 @@ public:
     {
         return data.data();
     }
+    std::string getCharId() const
+    {
+        return charId;
+    }
 private:
+    std::string charId;
     unsigned width;
     unsigned height;
     std::vector<unsigned char> data;
@@ -95,8 +103,6 @@ void makeFnt( const fs::path& dir )
     for ( std::vector<fs::path>::iterator it = files.begin(); it != files.end(); ++it )
         srcImages.push_back(SrcBitmap(*it));
 
-    std::cout << srcImages.size() << " images found" << std::endl;
-
     std::vector< rbp::RectSize > srcRects;
     for ( size_t i = 0; i < srcImages.size(); ++i )
     {
@@ -109,24 +115,65 @@ void makeFnt( const fs::path& dir )
     const int DST_WIDTH = 256;
     const int DST_HEIGHT = 256;
 
+
+    tinyxml2::XMLDocument doc;
+    tinyxml2::XMLDeclaration* decl = doc.NewDeclaration();
+    doc.InsertFirstChild(decl);
+
+    tinyxml2::XMLElement* root = doc.NewElement("font");
+    doc.InsertEndChild(root);
+
+    tinyxml2::XMLElement* pagesElement = doc.NewElement("pages");
+    root->InsertEndChild(pagesElement);
+
+    tinyxml2::XMLElement* chars = doc.NewElement("chars");
+    root->InsertEndChild(chars);
+
+
+
+    int charsCount = 0;
     for (int page = 0;; ++page)
     {
         rbp::MaxRectsBinPack mrbp(DST_WIDTH, DST_HEIGHT);
         std::vector<rbp::Rect> readyRects;
         mrbp.Insert( srcRects, readyRects, rbp::MaxRectsBinPack::RectBestAreaFit );
-
-        std::cout << readyRects.size() << " images placed" << std::endl;
         if ( readyRects.empty() )
             break;
 
         Bitmap bitmap(DST_WIDTH, DST_HEIGHT);
         for ( std::vector<rbp::Rect>::iterator it = readyRects.begin(); it != readyRects.end(); ++it )
+        {
             bitmap.paste(srcImages[it->tag], it->x, it->y);
 
+            tinyxml2::XMLElement* charElement = doc.NewElement("char");
+            charElement->SetAttribute("id", srcImages[it->tag].getCharId().c_str());
+            charElement->SetAttribute("x", it->x);
+            charElement->SetAttribute("y", it->y);
+            charElement->SetAttribute("width", it->width);
+            charElement->SetAttribute("height", it->height);
+            charElement->SetAttribute("xoffset", 0);
+            charElement->SetAttribute("yoffset", 0);
+            charElement->SetAttribute("xadvance", it->width);
+            charElement->SetAttribute("page", page);
+            charElement->SetAttribute("chnl", 15);
+
+
+            chars->InsertEndChild(charElement);
+            charsCount++;
+        }
+
         std::stringstream ss;
-        ss << "page" << page << ".png";
+        ss << "page_" << page << ".png";
         bitmap.saveToFile(ss.str());
+
+        tinyxml2::XMLElement* pageElement = doc.NewElement("page");
+        pageElement->SetAttribute("id", page);
+        pageElement->SetAttribute("file", ss.str().c_str());
+        pagesElement->InsertEndChild(pageElement);
     }
+
+    chars->SetAttribute("count", charsCount);
+    tinyxml2::XMLError err = doc.SaveFile("font.fnt", false);
 }
 
 int main( int argc, char** argv )

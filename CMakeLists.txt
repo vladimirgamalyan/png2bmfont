@@ -10,7 +10,7 @@ endif()
 find_package(Boost ${BOOST_MIN_VERSION} REQUIRED COMPONENTS system filesystem program_options)
 include_directories(${Boost_INCLUDE_DIR})
 
-set(SOURCE_FILES main.cpp MaxRectsBinPack/MaxRectsBinPack.cpp lodepng/lodepng.cpp)
+set(SOURCE_FILES main.cpp MaxRectsBinPack/MaxRectsBinPack.cpp lodepng/lodepng.cpp tinyxml2/tinyxml2.cpp)
 
 add_executable(png2bmfont ${SOURCE_FILES})
 target_link_libraries(png2bmfont ${Boost_LIBRARIES})
