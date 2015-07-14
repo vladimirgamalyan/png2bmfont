@@ -20,6 +20,7 @@ struct RectSize
 {
 	int width;
 	int height;
+	int tag;
 };
 
 struct Rect
@@ -28,6 +29,7 @@ struct Rect
 	int y;
 	int width;
 	int height;
+	int tag;
 };
 
 /// Performs a lexicographic compare on (rect short side, rect long side).
