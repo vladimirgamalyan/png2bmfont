@@ -9,6 +9,7 @@
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
 
+//TODO: remove transparent border around glyphs.
 
 class SrcBitmap
 {
@@ -131,13 +132,42 @@ void makeFnt( const fs::path& dir, fs::path output, unsigned int textureWidth, u
     root->InsertEndChild(chars);
 
 
+    rbp::MaxRectsBinPack mrbp;
 
     int charsCount = 0;
     for (int page = 0;; ++page)
     {
-        rbp::MaxRectsBinPack mrbp(textureWidth, textureHeight);
+        const rbp::MaxRectsBinPack::FreeRectChoiceHeuristic choiceHeuristics[ 5 ] = {
+                rbp::MaxRectsBinPack::RectBestShortSideFit,
+                rbp::MaxRectsBinPack::RectBestLongSideFit,
+                rbp::MaxRectsBinPack::RectBestAreaFit,
+                rbp::MaxRectsBinPack::RectBottomLeftRule,
+                rbp::MaxRectsBinPack::RectContactPointRule
+        };
+
+
+        float bestOccupancy = 0.f;
+        rbp::MaxRectsBinPack::FreeRectChoiceHeuristic bestChoiceHeuristic = rbp::MaxRectsBinPack::RectBestShortSideFit;
+        for ( int i = 0; i < 5; ++i )
+        {
+            mrbp.Init(textureWidth, textureHeight);
+            std::vector<rbp::Rect> readyRects;
+            std::vector< rbp::RectSize > tempRects( srcRects );
+            mrbp.Insert( tempRects, readyRects, choiceHeuristics[ i ] );
+            if ( readyRects.empty() )
+                continue;
+            float occupancy = mrbp.Occupancy();
+            if ( occupancy > bestOccupancy )
+            {
+                bestOccupancy = occupancy;
+                bestChoiceHeuristic = choiceHeuristics[ i ];
+            }
+        }
+
+        mrbp.Init(textureWidth, textureHeight);
         std::vector<rbp::Rect> readyRects;
-        mrbp.Insert( srcRects, readyRects, rbp::MaxRectsBinPack::RectBestAreaFit );
+        mrbp.Insert( srcRects, readyRects, bestChoiceHeuristic );
+
         if ( readyRects.empty() )
         {
             if ( !srcRects.empty() )
